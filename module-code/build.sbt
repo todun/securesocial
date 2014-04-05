@@ -6,7 +6,7 @@ organization := "denisftw"
 
 name := "securesocial"
 
-version := "0.0.14-SNAPSHOT"
+version := "0.0.14"
 
 sbtPlugin := false
 
