@@ -78,6 +78,8 @@ object Registration extends Controller {
 
   lazy val registrationEnabled = current.configuration.getBoolean(RegistrationEnabled).getOrElse(true)
 
+  val EmailRegex = """^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,4}$""".r
+
   private def stringConfig(key: String, default: => String) = {
     Play.current.configuration.getString(key).getOrElse(default)
   }
@@ -163,25 +165,34 @@ object Registration extends Controller {
 
   def handleStartSignUp = Action { implicit request =>
     if (registrationEnabled) {
-      startForm.bindFromRequest.fold (
-        errors => {
-          BadRequest(use[TemplatesPlugin].getStartSignUpPage(errors))
-        },
-        email => {
-          // check if there is already an account for this email address
-          UserService.findByEmailAndProvider(email, UsernamePasswordProvider.UsernamePassword) match {
-            case Some(user) => {
-              // user signed up already, send an email offering to login/recover password
-              Mailer.sendAlreadyRegisteredEmail(user)
+      if (!Captcha.validateCaptcha(request)) {
+        Redirect(RoutesHelper.startSignUp()).flashing(Error -> "Bad captcha")
+      }
+      else {
+        startForm.bindFromRequest.fold (
+          errors => {
+            BadRequest(use[TemplatesPlugin].getStartSignUpPage(errors))
+          },
+          email => {
+            if (EmailRegex.findAllMatchIn(email).isEmpty) {
+              Redirect(RoutesHelper.startSignUp()).flashing(Error -> "Please enter an email address")
+            } else {
+              // check if there is already an account for this email address
+              UserService.findByEmailAndProvider(email, UsernamePasswordProvider.UsernamePassword) match {
+                case Some(user) => {
+                  // user signed up already, send an email offering to login/recover password
+                  Mailer.sendAlreadyRegisteredEmail(user)
+                }
+                case None => {
+                  val token = createToken(email, isSignUp = true)
+                  Mailer.sendSignUpEmail(email, token._1)
+                }
+              }
             }
-            case None => {
-              val token = createToken(email, isSignUp = true)
-              Mailer.sendSignUpEmail(email, token._1)
-            }
+            Redirect(onHandleStartSignUpGoTo).flashing(Success -> Messages(ThankYouCheckEmail), Email -> email)
           }
-          Redirect(onHandleStartSignUpGoTo).flashing(Success -> Messages(ThankYouCheckEmail), Email -> email)
-        }
-      )
+        )
+      }
     }
     else NotFound(views.html.defaultpages.notFound.render(request, None))
   }
@@ -261,24 +272,66 @@ object Registration extends Controller {
     Ok(use[TemplatesPlugin].getStartResetPasswordPage(startForm ))
   }
 
+  /*
+
   def handleStartResetPassword = Action { implicit request =>
-    startForm.bindFromRequest.fold (
-      errors => {
-        BadRequest(use[TemplatesPlugin].getStartResetPasswordPage(errors))
-      },
-      email => {
-        UserService.findByEmailAndProvider(email, UsernamePasswordProvider.UsernamePassword) match {
-          case Some(user) => {
-            val token = createToken(email, isSignUp = false)
-            Mailer.sendPasswordResetEmail(user, token._1)
+    if (!Captcha.validateCaptcha(request)) {
+      Redirect(RoutesHelper.startResetPassword()).flashing(Error -> "Bad captcha")
+    }
+    else {
+      startForm.bindFromRequest.fold (
+        errors => {
+          BadRequest(use[TemplatesPlugin].getStartResetPasswordPage(request , errors))
+        },
+        email => {
+          if (EmailRegex.findAllMatchIn(email).isEmpty) {
+            Redirect(RoutesHelper.startResetPassword()).flashing(Error -> "Please enter an email address")
           }
-          case None => {
-            Mailer.sendUnkownEmailNotice(email)
+          else {
+            UserService.findByEmailAndProvider(email, UsernamePasswordProvider.UsernamePassword) match {
+              case Some(user) => {
+                val token = createToken(email, isSignUp = false)
+                Mailer.sendPasswordResetEmail(user, token._1)
+              }
+              case None => {
+                Logger.logger.info("User is trying to restore their password using '{}' but we don't have it in our database", email)
+              }
+            }
+            Redirect(onHandleStartResetPasswordGoTo).flashing(Success -> Messages(ThankYouCheckEmail))
           }
         }
-        Redirect(onHandleStartResetPasswordGoTo).flashing(Success -> Messages(ThankYouCheckEmail))
-      }
-    )
+      )
+    }
+  }
+   */
+  def handleStartResetPassword = Action { implicit request =>
+    if (!Captcha.validateCaptcha(request)) {
+      Redirect(RoutesHelper.startResetPassword()).flashing(Error -> "Bad captcha")
+    }
+    else {
+      startForm.bindFromRequest.fold (
+        errors => {
+          BadRequest(use[TemplatesPlugin].getStartResetPasswordPage(errors))
+        },
+        email => {
+          if (EmailRegex.findAllMatchIn(email).isEmpty) {
+            Redirect(RoutesHelper.startResetPassword()).flashing(Error -> "Please enter an email address")
+          }
+          else {
+            UserService.findByEmailAndProvider(email, UsernamePasswordProvider.UsernamePassword) match {
+              case Some(user) => {
+                val token = createToken(email, isSignUp = false)
+                Mailer.sendPasswordResetEmail(user, token._1)
+              }
+              case None => {
+                Mailer.sendUnkownEmailNotice(email)
+              }
+            }
+            Redirect(onHandleStartResetPasswordGoTo).flashing(Success -> Messages(ThankYouCheckEmail))
+          }
+        }
+      )
+    }
   }
 
   def resetPassword(token: String) = Action { implicit request =>
