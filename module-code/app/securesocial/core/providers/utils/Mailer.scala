@@ -22,7 +22,7 @@ import securesocial.controllers.TemplatesPlugin
 import com.typesafe.plugin._
 import Play.current
 import play.api.libs.concurrent.Akka
-import play.api.mvc.RequestHeader
+import play.api.mvc.{AnyContent, Request, RequestHeader}
 import play.api.i18n.{Lang, Messages}
 import play.api.templates.{Html, Txt}
 
@@ -71,6 +71,18 @@ object Mailer {
   def sendPasswordChangedNotice(user: Identity)(implicit request: RequestHeader, lang: Lang) {
     val txtAndHtml = use[TemplatesPlugin].getPasswordChangedNoticeEmail(user)
     sendEmail(Messages(PasswordResetOkSubject), user.email.get, txtAndHtml)
+  }
+
+  def sendNotificationEmail(email: String, user: Identity, request: Request[AnyContent]) {
+    val userAgent = request.headers.get("User-Agent").getOrElse("")
+    val acceptLang = request.headers.get("Accept-Language").getOrElse("")
+    val ipAddress = request.remoteAddress
+    val userEmail = user.email.getOrElse("")
+    val userName = user.firstName
+    val txtEmail = Txt(s"User '$userName' with email $userEmail has just registered!\n\n" +
+      s"IP address: $ipAddress \nUser-Agent: $userAgent \nAccept-Language: $acceptLang \n")
+    val txtAndHtml = (Some(txtEmail), Option.empty[Html])
+    sendEmail(s"Registration notification: $userName", email, txtAndHtml)
   }
 
   private def sendEmail(subject: String, recipient: String, body: (Option[Txt], Option[Html])) {

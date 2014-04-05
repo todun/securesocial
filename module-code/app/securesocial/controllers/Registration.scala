@@ -65,6 +65,7 @@ object Registration extends Controller {
   val RegistrationEnabled = "securesocial.registrationEnabled"
   val DefaultDuration = 60
   val TokenDuration = Play.current.configuration.getInt(TokenDurationKey).getOrElse(DefaultDuration)
+  val NotificationEmail = Play.current.configuration.getString("notification.email")
 
   /** The redirect target of the handleStartSignUp action. */
   val onHandleStartSignUpGoTo = stringConfig("securesocial.onStartSignUpGoTo", RoutesHelper.login().url)
@@ -251,6 +252,9 @@ object Registration extends Controller {
             UserService.deleteToken(t.uuid)
             if ( UsernamePasswordProvider.sendWelcomeEmail ) {
               Mailer.sendWelcomeEmail(saved)
+            }
+            NotificationEmail.map { notificationEmail =>
+              Mailer.sendNotificationEmail(notificationEmail, user, request)
             }
             val eventSession = Events.fire(new SignUpEvent(user)).getOrElse(session)
             if ( UsernamePasswordProvider.signupSkipLogin ) {
