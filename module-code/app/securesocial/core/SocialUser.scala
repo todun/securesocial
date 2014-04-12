@@ -40,6 +40,7 @@ trait Identity {
   def oAuth1Info: Option[OAuth1Info]
   def oAuth2Info: Option[OAuth2Info]
   def passwordInfo: Option[PasswordInfo]
+  def userCode: String
 }
 
 /**
@@ -49,7 +50,10 @@ case class SocialUser(identityId: IdentityId, firstName: String, lastName: Strin
                       avatarUrl: Option[String], authMethod: AuthenticationMethod,
                       oAuth1Info: Option[OAuth1Info] = None,
                       oAuth2Info: Option[OAuth2Info] = None,
-                      passwordInfo: Option[PasswordInfo] = None) extends Identity
+                      passwordInfo: Option[PasswordInfo] = None) extends Identity {
+  val userCode = if (authMethod == AuthenticationMethod.UserPassword)
+    identityId.userId else identityId.userId + "@" + identityId.providerId
+}
 
 object SocialUser {
   def apply(i: Identity): SocialUser = {
