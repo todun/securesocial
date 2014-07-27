@@ -276,8 +276,6 @@ object Registration extends Controller {
     Ok(use[TemplatesPlugin].getStartResetPasswordPage(startForm ))
   }
 
-  /*
-
   def handleStartResetPassword = Action { implicit request =>
     if (!Captcha.validateCaptcha(request)) {
       Redirect(RoutesHelper.startResetPassword()).flashing(Error -> "Bad captcha")

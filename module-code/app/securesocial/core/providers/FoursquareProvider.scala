@@ -17,20 +17,20 @@
 package securesocial.core.providers
 
 import securesocial.core._
-import play.api.{Logger, Application}
-import securesocial.core.IdentityId
-import securesocial.core.SocialUser
-import play.api.libs.ws.WS
-import securesocial.core.AuthenticationException
-import scala.Some
+import securesocial.core.services.{CacheService, RoutesService}
+
+import scala.concurrent.Future
 
 /**
  * A Foursquare provider
  *
  */
-class FoursquareProvider(application: Application) extends OAuth2Provider(application) {
-
-  val GetAuthenticatedUser = "https://api.foursquare.com/v2/users/self?oauth_token=%s"
+class FoursquareProvider(routesService: RoutesService,
+                         cacheService: CacheService,
+                         client: OAuth2Client)
+  extends OAuth2Provider(routesService, client, cacheService)
+{
+  val GetAuthenticatedUser = "https://api.foursquare.com/v2/users/self?v=20140404oauth_token=%s"
   val AccessToken = "access_token"
   val TokenType = "token_type"
   val Message = "message"
@@ -45,50 +45,30 @@ class FoursquareProvider(application: Application) extends OAuth2Provider(applic
   val Prefix = "prefix"
   val Suffix = "suffix"
 
-  override def id = FoursquareProvider.Foursquare
+  override val id = FoursquareProvider.Foursquare
 
-  /**
-   * Subclasses need to implement this method to populate the User object with profile
-   * information from the service provider.
-   *
-   * @param user The user object to be populated
-   * @return A copy of the user object with the new values set
-   */
-  def fillProfile(user: SocialUser): SocialUser = {
-    val promise = WS.url(GetAuthenticatedUser.format(user.oAuth2Info.get.accessToken)).get()
-
-    try {
-      val response = awaitResult(promise)
-      val me = response.json
-
-      (me \ "response" \ "user").asOpt[String] match {
-        case Some(msg) => {
-          Logger.error("[securesocial] error retrieving profile information from Foursquare. Message = %s".format(msg))
-          throw new AuthenticationException()
+  def fillProfile(info: OAuth2Info): Future[BasicProfile] = {
+    import scala.concurrent.ExecutionContext.Implicits.global
+    client.retrieveProfile(GetAuthenticatedUser.format(info.accessToken)).map { me =>
+        (me \ "response" \ "user").asOpt[String] match {
+          case Some(msg) =>
+            logger.error("[securesocial] error retrieving profile information from Foursquare. Message = %s".format(msg))
+            throw new AuthenticationException()
+          case _ =>
+            val userId = (me \ Response \ User \ Id).as[String]
+            val lastName = (me \ Response \ User \ LastName).asOpt[String]
+            val firstName = (me \ Response \ User \ FirstName).asOpt[String]
+            val avatarUrlPart1 = (me \ Response \ User \ AvatarUrl \ Prefix).asOpt[String]
+            val avatarUrlPart2 = (me \ Response \ User \ AvatarUrl \ Suffix).asOpt[String]
+            val avatarUrl = for (prefix <- avatarUrlPart1; postfix <- avatarUrlPart2) yield prefix + "100x100" + postfix
+            val email = (me \ Response \ User \ Contact \ Email).asOpt[String].filter(!_.isEmpty)
+            BasicProfile(id, userId, firstName, lastName, None, email, avatarUrl, authMethod, oAuth2Info = Some(info))
         }
-        case _ => {
-          val userId = ( me \ Response \ User \ Id).asOpt[String]
-          val lastName = (me \ Response \ User \ LastName).asOpt[String].getOrElse("")
-          val firstName = (me \ Response \ User \ FirstName).asOpt[String].getOrElse("")
-          val avatarUrlPart1  = (me \ Response \ User \ AvatarUrl \ Prefix).asOpt[String]
-          val avatarUrlPart2 = (me \ Response \ User \ AvatarUrl \ Suffix).asOpt[String]
-          val email = (me \ Response \ User \ Contact \ Email).asOpt[String].filter( !_.isEmpty )
-
-          user.copy(
-            identityId = IdentityId(userId.get , id),
-            lastName = lastName,
-            firstName = firstName,
-            fullName = firstName + " " + lastName,
-            avatarUrl = for (prefix <- avatarUrlPart1; postfix <- avatarUrlPart2) yield prefix + "100x100" + postfix,
-            email = email
-          )
-        }
-      }
-    } catch {
-      case e: Exception => {
-        Logger.error( "[securesocial] error retrieving profile information from foursquare", e)
+    } recover {
+      case e: AuthenticationException => throw e
+      case e  =>
+        logger.error( "[securesocial] error retrieving profile information from Foursquare", e)
         throw new AuthenticationException()
-      }
     }
   }
 }

@@ -16,15 +16,21 @@
  */
 package securesocial.core.providers
 
-import play.api.{Application, Logger}
 import play.api.libs.json.JsObject
+import play.api.libs.ws.Response
 import securesocial.core._
-import play.api.libs.ws.{ Response, WS }
+import securesocial.core.services.{CacheService, RoutesService}
+
+import scala.concurrent.Future
 
 /**
  * A Facebook Provider
  */
-class FacebookProvider(application: Application) extends OAuth2Provider(application) {
+class FacebookProvider(routesService: RoutesService,
+                       cacheService: CacheService,
+                       client: OAuth2Client)
+  extends OAuth2Provider(routesService, client, cacheService)
+{
   val MeApi = "https://graph.facebook.com/me?fields=name,first_name,last_name,picture,email&return_ssl_resources=1&access_token="
   val Error = "error"
   val Message = "message"
@@ -40,7 +46,7 @@ class FacebookProvider(application: Application) extends OAuth2Provider(applicat
   val Data = "data"
   val Url = "url"
 
-  override def id = FacebookProvider.Facebook
+  override val id = FacebookProvider.Facebook
 
   // facebook does not follow the OAuth2 spec :-\
   override protected def buildInfo(response: Response): OAuth2Info = {
@@ -48,50 +54,39 @@ class FacebookProvider(application: Application) extends OAuth2Provider(applicat
         case Array(AccessToken, token, Expires, expiresIn) => OAuth2Info(token, None, Some(expiresIn.toInt))
         case Array(AccessToken, token) => OAuth2Info(token)
         case _ =>
-          Logger.error("[securesocial] invalid response format for accessToken")
+          logger.error("[securesocial] invalid response format for accessToken")
           throw new AuthenticationException()
     }
   }
 
-  def fillProfile(user: SocialUser) = {
-    val accessToken = user.oAuth2Info.get.accessToken
-    val call = WS.url(MeApi + accessToken).get()
-
-    try {
-      val response = awaitResult(call)
-      val me = response.json
-      (me \ Error).asOpt[JsObject] match {
-        case Some(error) =>
-          val message = (error \ Message).as[String]
-          val errorType = ( error \ Type).as[String]
-          Logger.error(
-            "[securesocial] error retrieving profile information from Facebook. Error type: %s, message: %s".
-              format(errorType, message)
-          )
-          throw new AuthenticationException()
-        case _ =>
-          val userId = (me \ Id).as[String]
-          val name = (me \ Name).as[String]
-          val firstName = (me \ FirstName).as[String]
-          val lastName = (me \ LastName).as[String]
-          val picture = me \ Picture
-          val avatarUrl = (picture \ Data \ Url).asOpt[String]
-          val email = (me \ Email).asOpt[String]
-
-          user.copy(
-            identityId = IdentityId(userId, id),
-            firstName = firstName,
-            lastName = lastName,
-            fullName = name,
-            avatarUrl = avatarUrl,
-            email = email
-          )
-      }
-    } catch {
-      case e: Exception => {
-          Logger.error("[securesocial] error retrieving profile information from Facebook",  e)
-          throw new AuthenticationException()
-      }
+  def fillProfile(info: OAuth2Info): Future[BasicProfile] = {
+    import scala.concurrent.ExecutionContext.Implicits.global
+    val accessToken = info.accessToken
+    client.retrieveProfile(MeApi + accessToken).map { me =>
+        (me \ Error).asOpt[JsObject] match {
+          case Some(error) =>
+            val message = (error \ Message).as[String]
+            val errorType = (error \ Type).as[String]
+            logger.error(
+              "[securesocial] error retrieving profile information from Facebook. Error type: %s, message: %s".
+                format(errorType, message)
+            )
+            throw new AuthenticationException()
+          case _ =>
+            val userId = (me \ Id).as[String]
+            val name = (me \ Name).asOpt[String]
+            val firstName = (me \ FirstName).asOpt[String]
+            val lastName = (me \ LastName).asOpt[String]
+            val picture = me \ Picture
+            val avatarUrl = (picture \ Data \ Url).asOpt[String]
+            val email = (me \ Email).asOpt[String]
+            BasicProfile(id, userId, firstName, lastName, name, email, avatarUrl, authMethod, oAuth2Info = Some(info))
+        }
+    } recover {
+      case e: AuthenticationException => throw e
+      case e =>
+        logger.error("[securesocial] error retrieving profile information from Facebook",  e)
+        throw new AuthenticationException()
     }
   }
 }

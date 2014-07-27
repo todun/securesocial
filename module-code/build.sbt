@@ -2,7 +2,7 @@ import play.Project._
 import bintray.Plugin._
 import bintray.Keys._
 
-organization := "denisftw"
+name := "SecureSocial"
 
 name := "securesocial"
 
@@ -12,24 +12,59 @@ sbtPlugin := false
 
 libraryDependencies ++= Seq(
   cache,
-  "com.typesafe" %% "play-plugins-util" % "2.2.0",
-  "com.typesafe" %% "play-plugins-mailer" % "2.2.0",
-  "net.tanesha.recaptcha4j" % "recaptcha4j" % "0.0.7",
-  "org.mindrot" % "jbcrypt" % "0.3m"
+  ws,
+  "com.typesafe.play.plugins" %% "play-plugins-util" % "2.3.0",
+  "com.typesafe.play.plugins" %% "play-plugins-mailer" % "2.3.0",
+  "org.mindrot" % "jbcrypt" % "0.3m",
+  "org.specs2" %% "specs2" % "2.3.12" % "test",
+  "org.mockito" % "mockito-all" % "1.9.5" % "test"
 )
 
-resolvers ++= Seq(Resolver.typesafeRepo("releases"))
+resolvers ++= Seq(
+  Resolver.typesafeRepo("releases")
+)
 
 bintraySettings
 
 publishMavenStyle := true
 
-licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html"))
+publishArtifact in Test := false
+
+pomIncludeRepository := { _ => false }
+
+publishTo := {
+  val nexus = "https://oss.sonatype.org/"
+  if (version.value.trim.endsWith("SNAPSHOT"))
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  else
+    Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+}
+
+startYear := Some(2012)
+
+description := "An authentication module for Play Framework applications supporting OAuth, OAuth2, OpenID, Username/Password and custom authentication schemes."
+
+licenses := Seq("The Apache Software License, Version 2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"))
+
+homepage := Some(url("http://www.securesocial.ws"))
+
+pomExtra := (
+  <scm>
+    <url>https://github.com/jaliss/securesocial</url>
+    <connection>scm:git:git@github.com:jaliss/securesocial.git</connection>
+    <developerConnection>scm:git:https://github.com/jaliss/securesocial.git</developerConnection>
+  </scm>
+  <developers>
+    <developer>
+      <id>jaliss</id>
+      <name>Jorge Aliss</name>
+      <email>jaliss [at] gmail.com</email>
+      <url>https://twitter.com/jaliss</url>
+    </developer>
+  </developers>
+)
 
 scalacOptions := Seq("-feature", "-deprecation")
 
 playScalaSettings
 
-repository in bintray := "maven"
-
-bintrayOrganization in bintray := None

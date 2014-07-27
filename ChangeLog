@@ -1,4 +1,31 @@
 master  -
+		- Code is now compatible with Play 2.3
+		- Added SecureSocial.currentUser to support Websockets
+		- Fixed #429: null pointer exception in UserAware Java API (thanks @mangecoeur)
+		- Pull request #159: Weibo support (thanks @qiuzhanghua and @wuhaixing)
+		- Pull request #398: Dropbox support (thanks @deterdw)
+		- Pull request #426: Extract oauth clients (thanks @jeantil)
+		- Pull request #422: Use named loggers for all providers logging (thanks @jeantil)
+		- Fixed #420: Xing provider references VkProviderSettings
+		- Fixed #419: bad sequence of a and p tags (thanks @jglodek)
+		- Updated XingProvider to work with their latest APIs (thanks @muhlig)
+		- Fixed serialization problems with Authenticators (#417 and #416)
+		- Fix logged messages in ProviderController (thanks @AlekseiS)
+		- Add a string so SaveMode compares will work (thanks @ddispaltro)
+		- Propagate implicit lang parameter from mailer to mail templates (thanks @jeantil)
+		- Changed to managed controllers
+		- Removed RoutesHelper
+		- Added a module default routes file
+		- Refactored things not to use Play plugins anymore
+		- Created services out of helper classes
+		- Added RuntimeEnvironment
+		- Identity trait replaced by BasicProfile
+		- Improved Authenticator framework: AuthenticatorService + AuthenticatorBuilders
+		- Added support for X-Auth-Token header
+		- Changes to SecuredAction to use content negotiation for error responses
+		- Added async support
+		- Removed ajaxCall
+		- Added API to login to better support SPA and mobile apps
 		- removed unnecessary fix for http context in SecuredAction (Java): Play sets the http context properly now.
 		- Fixed handling of IDs greater than 32bits for TwitterProvider
 		- Prevent errors caused by missing email in FacebookProvider (thanks @chrisbeach)

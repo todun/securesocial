@@ -22,7 +22,7 @@ import securesocial.controllers.TemplatesPlugin
 import com.typesafe.plugin._
 import Play.current
 import play.api.libs.concurrent.Akka
-import play.api.mvc.{AnyContent, Request, RequestHeader}
+import play.api.mvc.RequestHeader
 import play.api.i18n.{Lang, Messages}
 import play.api.templates.{Html, Txt}
 
