@@ -8,6 +8,6 @@ resolvers += Resolver.url("bintray-sbt-plugin-releases", url("http://dl.bintray.
     Resolver.ivyStylePatterns)
 
 // Use the Play sbt plugin for Play projects
-addSbtPlugin("com.typesafe.play" % "sbt-plugin" % System.getProperty("play.version"))
+addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.3.2")
 
-addSbtPlugin("me.lessis" % "bintray-sbt" % "0.1.1")
+addSbtPlugin("me.lessis" % "bintray-sbt" % "0.1.2")

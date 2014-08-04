@@ -42,6 +42,8 @@ class PasswordReset(override implicit val env: RuntimeEnvironment[BasicProfile])
 trait BasePasswordReset[U] extends MailTokenBasedOperations[U] {
   private val logger = play.api.Logger("securesocial.controllers.BasePasswordReset")
 
+  val EmailRegex1 = """^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,4}$""".r
+
   val PasswordUpdated = "securesocial.password.passwordUpdated"
   val ErrorUpdatingPassword = "securesocial.password.error"
 
@@ -67,22 +69,33 @@ trait BasePasswordReset[U] extends MailTokenBasedOperations[U] {
   def handleStartResetPassword = Action.async {
     implicit request =>
       import scala.concurrent.ExecutionContext.Implicits.global
-      startForm.bindFromRequest.fold(
-        errors => Future.successful(BadRequest(env.viewTemplates.getStartResetPasswordPage(errors))),
-        email => env.userService.findByEmailAndProvider(email, UsernamePasswordProvider.UsernamePassword).map {
-          maybeUser =>
-            maybeUser match {
-              case Some(user) =>
-                createToken(email, isSignUp = false).map {
-                  token =>
-                    env.mailer.sendPasswordResetEmail(user, token.uuid)
-                }
-              case None =>
-                env.mailer.sendUnkownEmailNotice(email)
+      if (!Captcha.validateCaptcha(request)) {
+        Future.successful(handleStartResult().flashing(Error -> "Bad captcha"))
+      }
+      else {
+        startForm.bindFromRequest.fold(
+          errors => Future.successful(BadRequest(env.viewTemplates.getStartResetPasswordPage(errors))),
+          email =>
+            if (EmailRegex1.findAllMatchIn(email).isEmpty) {
+              Future.successful(handleStartResult().flashing(Error -> "Please enter an email address"))
             }
-            handleStartResult().flashing(Success -> Messages(BaseRegistration.ThankYouCheckEmail))
-        }
-      )
+            else {
+              env.userService.findByEmailAndProvider(email, UsernamePasswordProvider.UsernamePassword).map {
+                maybeUser =>
+                  maybeUser match {
+                    case Some(user) =>
+                      createToken(email, isSignUp = false).map {
+                        token =>
+                          env.mailer.sendPasswordResetEmail(user, token.uuid)
+                      }
+                    case None =>
+                      env.mailer.sendUnkownEmailNotice(email)
+                  }
+                  handleStartResult().flashing(Success -> Messages(BaseRegistration.ThankYouCheckEmail))
+            }
+          }
+        )
+      }
   }
 
   /**
